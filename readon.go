@@ -9,17 +9,25 @@ import (
 	"strings"
 )
 
-func Readon(reader io.Reader) (string, error) {
+type Article struct {
+	Title       string
+	ArticleHtml string
+}
+
+func NewArticle(reader io.Reader) (*Article, error) {
 	tree, _ := h5.New(reader)
 	t := transform.New(tree)
 	removeScripts(t)
 	removeUnlikely(t)
 	removeCss(t)
+	removeImages(t)
 	// TODO(pascalj): replace double BR with P
 	removeBr(t)
 	removeTags(t, []string{"form", "h1", "object", "iframe"})
-	topTag := topCancidate(tree)
-	return innerText(topTag), nil
+	removeEmpty(t)
+	topTag := topCancidate(t.Doc())
+	article := &Article{"", h5.RenderNodesToString([]*html.Node{topTag})}
+	return article, nil
 }
 
 func removeScripts(t *transform.Transformer) {
@@ -32,8 +40,13 @@ func removeCss(t *transform.Transformer) {
 	t.Apply(transform.ModifyAttrib("style", ""), "[style]")
 }
 
+func removeImages(t *transform.Transformer) {
+	t.Apply(transform.Replace(), "figure")
+	t.Apply(transform.Replace(), "img")
+}
+
 func removeUnlikely(t *transform.Transformer) {
-	unlikelyClasses := ".combx, .comment, .community, .disqus, .extra, .foot, .header, .menu, .remark, .rss, .shoutbox, .sidebar, .sponsor, .ad-break, .agegate, .pagination, .pager, .popup, .tweet, .twitter"
+	unlikelyClasses := ".combx, .comment, .community, .disqus, .extra, .foot, .header, .menu, .remark, .rss, .shoutbox, .sidebar, .sponsor, .ad-break, .agegate, .pagination, .pager, .popup, .tweet, .twitter, .ad"
 	unlikelyIds := "#combx, #comment, #community, #disqus, #extra, #foot, #header, #menu, #remark, #rss, #shoutbox, #sidebar, #sponsor, #ad-break, #agegate, #pagination, #pager, #popup, #tweet, #twitter"
 	applyGroup(unlikelyClasses, func(sel string) { t.Apply(transform.Replace(), sel) })
 	applyGroup(unlikelyIds, func(sel string) { t.Apply(transform.Replace(), sel) })
@@ -43,14 +56,19 @@ func removeBr(t *transform.Transformer) {
 	t.Apply(transform.Replace(), "br")
 }
 
+func removeEmpty(t *transform.Transformer) {
+	t.Apply(transform.Replace(), "li:empty")
+	t.Apply(transform.Replace(), "p:empty")
+}
+
 func removeTags(t *transform.Transformer, tags []string) {
 	for _, tag := range tags {
 		t.Apply(transform.Replace(), tag)
 	}
 }
 
-func topCancidate(tree *h5.Tree) *html.Node {
-	ratings := rateCancidates(tree.Top())
+func topCancidate(node *html.Node) *html.Node {
+	ratings := rateCancidates(node)
 	var topCancidate *html.Node
 
 	// Weight the links by linkDensity (less links is better) and get the top candidate
