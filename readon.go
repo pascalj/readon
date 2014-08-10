@@ -50,7 +50,7 @@ func removeTags(t *transform.Transformer, tags []string) {
 }
 
 func topCancidate(tree *h5.Tree) *html.Node {
-	ratings := rateDocument(tree.Top())
+	ratings := rateCancidates(tree.Top())
 	var topCancidate *html.Node
 
 	// Weight the links by linkDensity (less links is better) and get the top candidate
@@ -63,7 +63,7 @@ func topCancidate(tree *h5.Tree) *html.Node {
 	return topCancidate
 }
 
-func rateDocument(node *html.Node) map[*html.Node]int {
+func rateCancidates(node *html.Node) map[*html.Node]int {
 	ratings := make(map[*html.Node]int)
 	h5.WalkNodes(node, func(node *html.Node) {
 
