@@ -4,8 +4,8 @@ import (
 	"code.google.com/p/go-html-transform/h5"
 	"code.google.com/p/go-html-transform/html/transform"
 	"code.google.com/p/go.net/html"
-	"fmt"
 	"io"
+	"math"
 	"strings"
 )
 
@@ -15,10 +15,11 @@ func Readon(reader io.Reader) (string, error) {
 	removeScripts(t)
 	removeUnlikely(t)
 	removeCss(t)
+	// TODO(pascalj): replace double BR with P
 	removeBr(t)
 	removeTags(t, []string{"form", "h1", "object", "iframe"})
-	// TODO(pascalj): replace double BR with P
-	return t.String(), nil
+	topTag := topCancidate(tree)
+	return innerText(topTag), nil
 }
 
 func removeScripts(t *transform.Transformer) {
@@ -48,21 +49,80 @@ func removeTags(t *transform.Transformer, tags []string) {
 	}
 }
 
-func linkDensity(tree *h5.Tree) float32 {
+func topCancidate(tree *h5.Tree) *html.Node {
+	ratings := rateDocument(tree.Top())
+	var topCancidate *html.Node
+
+	// Weight the links by linkDensity (less links is better) and get the top candidate
+	for node, score := range ratings {
+		if topCancidate == nil || score > ratings[topCancidate] {
+			topCancidate = node
+		}
+	}
+
+	return topCancidate
+}
+
+func rateDocument(node *html.Node) map[*html.Node]int {
+	ratings := make(map[*html.Node]int)
+	h5.WalkNodes(node, func(node *html.Node) {
+
+		// Only consider paragraphs
+		if node.Type != html.ElementNode || node.Data != "p" {
+			return
+		}
+		score := rateNode(node)
+		if node.Parent != nil {
+			if _, containsNode := ratings[node.Parent]; !containsNode {
+				ratings[node.Parent] = 0
+			}
+			ratings[node.Parent] += int(float32(score) * (1.0 - linkDensity(node.Parent)))
+		}
+		if node.Parent != nil && node.Parent.Parent != nil {
+			if _, containsNode := ratings[node.Parent.Parent]; !containsNode {
+				ratings[node.Parent.Parent] = 0
+			}
+			ratings[node.Parent.Parent] += int(float32(score)*(1.0-linkDensity(node.Parent.Parent))) / 2
+		}
+	})
+	return ratings
+}
+
+func rateNode(node *html.Node) int {
+	score := 1
+	innerText := innerText(node)
+
+	// Don't even consider short paragraphs
+	if len(innerText) <= 25 {
+		return 0
+	}
+
+	// Add a point for ervery comma
+	score += strings.Count(innerText, ",")
+
+	// Add up to three points for each 100 chars
+	if hChars := int(math.Floor(float64(len(innerText)) / 100)); hChars <= 3 {
+		score += hChars
+	} else {
+		score += 3
+	}
+	return score
+}
+
+func linkDensity(node *html.Node) float32 {
 	var textLength, linkLength int
-	textLength = len(innerText(tree))
-	h5.WalkNodes(tree.Top(), func(node *html.Node) {
+	textLength = len(innerText(node))
+	h5.WalkNodes(node, func(node *html.Node) {
 		if node.Type == html.ElementNode && node.Data == "a" {
-			subTree := h5.NewTree(node)
-			linkLength = linkLength + len(innerText(&subTree))
+			linkLength = linkLength + len(innerText(node))
 		}
 	})
 	return float32(linkLength) / float32(textLength)
 }
 
-func innerText(tree *h5.Tree) string {
+func innerText(node *html.Node) string {
 	var content string
-	tree.Walk(func(node *html.Node) {
+	h5.WalkNodes(node, func(node *html.Node) {
 		if node.Type == html.TextNode {
 			content = content + node.Data
 		}
@@ -70,9 +130,9 @@ func innerText(tree *h5.Tree) string {
 	return content
 }
 
-func count(tree *h5.Tree, tag string) int {
+func count(node *html.Node, tag string) int {
 	var total int
-	tree.Walk(func(node *html.Node) {
+	h5.WalkNodes(node, func(node *html.Node) {
 		if node.Type == html.ElementNode && node.Data == tag {
 			total = total + 1
 		}
