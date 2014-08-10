@@ -1,6 +1,6 @@
 # Readon [![Build Status](https://travis-ci.org/pascalj/readon.svg?branch=master)](https://travis-ci.org/pascalj/readon)
 
-Readon is a library written in Go. It tries to get only the content from a website and it is roughly inspired by arc90's [Readability](http://lab.arc90.com/2009/03/02/readability/). 
+Readon is a library written in Go. It tries to get only the content from a website and it is roughly inspired by arc90's [Readability](http://lab.arc90.com/2009/03/02/readability/).
 
 ## Usage
 
@@ -11,10 +11,11 @@ file, _ := os.Open("my_article.html")
 article, err = readon.NewArticle(file)
 if err == nil {
 	// output the articles essential html without <html> and <body>
-	fmt.Println(article.ArticleHtml)}
+	fmt.Println(article.ArticleHtml)
+}
 ```
 
-Please note that Readon is using heuristics to determine what's the content of a website. It may get something wrong. In that case, please provide an example and file a bug. Thank you!
+Please note that Readon is using heuristics to determine what the content of a website is. It may get something wrong. In that case, please provide an example and file a bug. Thank you!
 
 ## Contribution
 
@@ -26,7 +27,7 @@ Contributions of any kind are highly welcome. If you want to contribute code dir
 
 ## BSD License
 
-Copyright (c) 2014, Pascal Jungblut <oss@pascalj.de>  
+Copyright (c) 2014, Pascal Jungblut <oss@pascalj.de>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
