@@ -3,6 +3,8 @@ package readon
 import (
 	"code.google.com/p/go-html-transform/h5"
 	"code.google.com/p/go-html-transform/html/transform"
+	"code.google.com/p/go.net/html"
+	"fmt"
 	"io"
 	"strings"
 )
@@ -46,8 +48,40 @@ func removeTags(t *transform.Transformer, tags []string) {
 	}
 }
 
+func linkDensity(tree *h5.Tree) float32 {
+	var textLength, linkLength int
+	textLength = len(innerText(tree))
+	h5.WalkNodes(tree.Top(), func(node *html.Node) {
+		if node.Type == html.ElementNode && node.Data == "a" {
+			subTree := h5.NewTree(node)
+			linkLength = linkLength + len(innerText(&subTree))
+		}
+	})
+	return float32(linkLength) / float32(textLength)
+}
+
+func innerText(tree *h5.Tree) string {
+	var content string
+	tree.Walk(func(node *html.Node) {
+		if node.Type == html.TextNode {
+			content = content + node.Data
+		}
+	})
+	return content
+}
+
+func count(tree *h5.Tree, tag string) int {
+	var total int
+	tree.Walk(func(node *html.Node) {
+		if node.Type == html.ElementNode && node.Data == tag {
+			total = total + 1
+		}
+	})
+	return total
+}
+
 func applyGroup(group string, applyFunc func(string)) {
 	for _, sel := range strings.Split(group, ",") {
-		applyFunc(strings.Trim(sel, " "))
+		applyFunc(strings.Trim(sel, " \t"))
 	}
 }
