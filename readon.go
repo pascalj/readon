@@ -25,7 +25,7 @@ func NewArticle(reader io.Reader) (*Article, error) {
 	removeBr(t)
 	removeTags(t, []string{"form", "h1", "object", "iframe"})
 	removeEmpty(t)
-	topTag := topCancidate(t.Doc())
+	topTag := topCandidate(t.Doc())
 	article := &Article{"", h5.RenderNodesToString([]*html.Node{topTag})}
 	return article, nil
 }
@@ -67,21 +67,21 @@ func removeTags(t *transform.Transformer, tags []string) {
 	}
 }
 
-func topCancidate(node *html.Node) *html.Node {
-	ratings := rateCancidates(node)
-	var topCancidate *html.Node
+func topCandidate(node *html.Node) *html.Node {
+	ratings := rateCandidates(node)
+	var topCandidate *html.Node
 
 	// Weight the links by linkDensity (less links is better) and get the top candidate
 	for node, score := range ratings {
-		if topCancidate == nil || score > ratings[topCancidate] {
-			topCancidate = node
+		if topCandidate == nil || score > ratings[topCandidate] {
+			topCandidate = node
 		}
 	}
 
-	return topCancidate
+	return topCandidate
 }
 
-func rateCancidates(node *html.Node) map[*html.Node]int {
+func rateCandidates(node *html.Node) map[*html.Node]int {
 	ratings := make(map[*html.Node]int)
 	h5.WalkNodes(node, func(node *html.Node) {
 
