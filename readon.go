@@ -1,6 +1,7 @@
 package readon
 
 import (
+	"code.google.com/p/go-html-transform/css/selector"
 	"code.google.com/p/go-html-transform/h5"
 	"code.google.com/p/go-html-transform/html/transform"
 	"code.google.com/p/go.net/html"
@@ -14,8 +15,10 @@ type Article struct {
 	ArticleHtml string
 }
 
+// NewArticle creates a new Article from an io.Reader.
 func NewArticle(reader io.Reader) (*Article, error) {
 	tree, _ := h5.New(reader)
+	title := findTitle(tree.Top())
 	t := transform.New(tree)
 	removeScripts(t)
 	removeUnlikely(t)
@@ -26,25 +29,30 @@ func NewArticle(reader io.Reader) (*Article, error) {
 	removeTags(t, []string{"form", "h1", "object", "iframe"})
 	removeEmpty(t)
 	topTag := topCandidate(t.Doc())
-	article := &Article{"", h5.RenderNodesToString([]*html.Node{topTag})}
+	article := &Article{title, h5.RenderNodesToString([]*html.Node{topTag})}
 	return article, nil
 }
 
+// removeScript removes all script tags.
 func removeScripts(t *transform.Transformer) {
 	t.Apply(transform.Replace(), "script")
 	t.Apply(transform.Replace(), "noscript")
 }
 
+// removeScript removes all link tags and empties style attributes
 func removeCss(t *transform.Transformer) {
 	t.Apply(transform.Replace(), "link")
 	t.Apply(transform.ModifyAttrib("style", ""), "[style]")
 }
 
+// removeImages removes all images and figures.
 func removeImages(t *transform.Transformer) {
 	t.Apply(transform.Replace(), "figure")
 	t.Apply(transform.Replace(), "img")
 }
 
+// removeUnlikely removes all tags that probably don't hold any important content.
+// TODO(pascalj): more sophisticated filtering
 func removeUnlikely(t *transform.Transformer) {
 	unlikelyClasses := ".combx, .comment, .community, .disqus, .extra, .foot, .header, .menu, .remark, .rss, .shoutbox, .sidebar, .sponsor, .ad-break, .agegate, .pagination, .pager, .popup, .tweet, .twitter, .ad"
 	unlikelyIds := "#combx, #comment, #community, #disqus, #extra, #foot, #header, #menu, #remark, #rss, #shoutbox, #sidebar, #sponsor, #ad-break, #agegate, #pagination, #pager, #popup, #tweet, #twitter"
@@ -52,21 +60,41 @@ func removeUnlikely(t *transform.Transformer) {
 	applyGroup(unlikelyIds, func(sel string) { t.Apply(transform.Replace(), sel) })
 }
 
+// removeBr removes all <br> tags.
 func removeBr(t *transform.Transformer) {
 	t.Apply(transform.Replace(), "br")
 }
 
+// removeEmpty removes some empty elements that have visible default styles.
 func removeEmpty(t *transform.Transformer) {
 	t.Apply(transform.Replace(), "li:empty")
 	t.Apply(transform.Replace(), "p:empty")
 }
 
+// removeTags removes all specified tags.
 func removeTags(t *transform.Transformer, tags []string) {
 	for _, tag := range tags {
 		t.Apply(transform.Replace(), tag)
 	}
 }
 
+// findTitle tries to find the title of the article.
+// It does that either by using the title tag or using the first
+// h1.
+func findTitle(node *html.Node) string {
+	var title string
+	walkSelector(node, "head title", func(hit *html.Node) {
+		title = innerText(hit)
+	})
+	if countSelector(node, "h1") == 1 {
+		walkSelector(node, "h1", func(hit *html.Node) {
+			title = innerText(hit)
+		})
+	}
+	return strings.Trim(title, " \t")
+}
+
+// topCandidate tries to find the best candidate for the tag that holds the complete article.
 func topCandidate(node *html.Node) *html.Node {
 	ratings := rateCandidates(node)
 	var topCandidate *html.Node
@@ -81,6 +109,7 @@ func topCandidate(node *html.Node) *html.Node {
 	return topCandidate
 }
 
+// rateCandidates rates all p tags and their parent nodes by a simple heuristic.
 func rateCandidates(node *html.Node) map[*html.Node]int {
 	ratings := make(map[*html.Node]int)
 	h5.WalkNodes(node, func(node *html.Node) {
@@ -106,6 +135,7 @@ func rateCandidates(node *html.Node) map[*html.Node]int {
 	return ratings
 }
 
+// rateNode rates a single note based on some metrics like the strlen.
 func rateNode(node *html.Node) int {
 	score := 1
 	innerText := innerText(node)
@@ -127,6 +157,7 @@ func rateNode(node *html.Node) int {
 	return score
 }
 
+// linkDensity finds the ratio of links and text in a given node.
 func linkDensity(node *html.Node) float32 {
 	var textLength, linkLength int
 	textLength = len(innerText(node))
@@ -138,6 +169,7 @@ func linkDensity(node *html.Node) float32 {
 	return float32(linkLength) / float32(textLength)
 }
 
+// innerText returns the text of a node without any HTML elements.
 func innerText(node *html.Node) string {
 	var content string
 	h5.WalkNodes(node, func(node *html.Node) {
@@ -148,6 +180,7 @@ func innerText(node *html.Node) string {
 	return content
 }
 
+// count counts the tags of a given type within the node.
 func count(node *html.Node, tag string) int {
 	var total int
 	h5.WalkNodes(node, func(node *html.Node) {
@@ -158,8 +191,29 @@ func count(node *html.Node, tag string) int {
 	return total
 }
 
+// applyGroup applies a function to a set of nodes matched by comma separated selector string.
 func applyGroup(group string, applyFunc func(string)) {
 	for _, sel := range strings.Split(group, ",") {
 		applyFunc(strings.Trim(sel, " \t"))
 	}
+}
+
+// walkSelector walks all nodes matched by a CSS3 selector.
+func walkSelector(node *html.Node, sel string, f func(node *html.Node)) {
+	col, err := selector.Selector(sel)
+	if err != nil {
+		return
+	}
+	for _, hit := range col.Find(node) {
+		f(hit)
+	}
+}
+
+// countSelector counts the nodes that match a selector in a given node.
+func countSelector(node *html.Node, sel string) int {
+	col, err := selector.Selector(sel)
+	if err != nil {
+		return 0
+	}
+	return len(col.Find(node))
 }
