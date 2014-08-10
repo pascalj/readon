@@ -145,7 +145,7 @@ func rateNode(node *html.Node) int {
 		return 0
 	}
 
-	// Add a point for ervery comma
+	// Add a point for every comma
 	score += strings.Count(innerText, ",")
 
 	// Add up to three points for each 100 chars

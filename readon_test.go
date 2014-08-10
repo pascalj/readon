@@ -8,6 +8,7 @@ import (
 
 var testArticle *Article
 
+// setup loads an article into testArticle
 func setup() {
 	if testArticle == nil {
 		file, _ := os.Open("fixtures/heise.html")
